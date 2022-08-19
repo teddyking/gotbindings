@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +18,9 @@ type Status struct {
 }
 
 type Binding struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Entries []string `json:"entries"`
 }
 
 func main() {
@@ -37,7 +41,12 @@ func main() {
 	r.GET("/", func(c *gin.Context) {
 		var status Status
 
-		bindings := getBindings(bindingsRootDir)
+		bindings, err := getBindings(bindingsRootDir)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err)
+			return
+		}
+
 		if len(bindings) > 0 {
 			status.GotBindings = true
 		}
@@ -49,21 +58,44 @@ func main() {
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
 
-func getBindings(bindingsRootDir string) []Binding {
+func getBindings(bindingsRootDir string) ([]Binding, error) {
 	bindingDirs, err := os.ReadDir(bindingsRootDir)
 	if err != nil {
-		return []Binding{}
+		return []Binding{}, err
 	}
 
 	if len(bindingDirs) < 1 {
-		return []Binding{}
+		return []Binding{}, nil
 	}
 
 	bindings := []Binding{}
-
 	for _, bindingDir := range bindingDirs {
-		bindings = append(bindings, Binding{Name: bindingDir.Name()})
+		binding := Binding{
+			Name: bindingDir.Name(),
+		}
+
+		bindingEntryFiles, err := os.ReadDir(filepath.Join(bindingsRootDir, bindingDir.Name()))
+		if err != nil {
+			return []Binding{}, err
+		}
+
+		entries := []string{}
+		for _, bindingEntryFile := range bindingEntryFiles {
+			if bindingEntryFile.Name() == "type" {
+				bindingType, err := os.ReadFile(filepath.Join(bindingsRootDir, bindingDir.Name(), bindingEntryFile.Name()))
+				if err != nil {
+					return []Binding{}, err
+				}
+
+				binding.Type = strings.TrimSpace(string(bindingType))
+			} else {
+				entries = append(entries, bindingEntryFile.Name())
+			}
+		}
+
+		binding.Entries = entries
+		bindings = append(bindings, binding)
 	}
 
-	return bindings
+	return bindings, nil
 }
