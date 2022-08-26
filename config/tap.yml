@@ -1,0 +1,45 @@
+---
+apiVersion: carto.run/v1alpha1
+kind: Workload
+metadata:
+  labels:
+    app.kubernetes.io/part-of: gotbindings
+    apps.tanzu.vmware.com/workload-type: web
+  name: gotbindings
+spec:
+  image: ghcr.io/teddyking/gotbindings
+  params:
+  - name: annotations
+    value:
+      autoscaling.knative.dev/minScale: "1"
+  serviceClaims:
+    # add or remove claims as desired
+    - name: secret-test-service
+      ref:
+        apiVersion: services.apps.tanzu.vmware.com/v1alpha1
+        kind: ResourceClaim
+        name: gotbindings
+---
+apiVersion: services.apps.tanzu.vmware.com/v1alpha1
+kind: ResourceClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: gotbindings
+  name: gotbindings
+spec:
+ ref:
+  apiVersion: v1
+  kind: Secret
+  name: gotbindings-test-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gotbindings-test-secret
+  labels:
+    app.kubernetes.io/part-of: gotbindings
+type: Opaque
+data:
+  type: dGVzdAo=
+  extra: YmFyCg==
+
